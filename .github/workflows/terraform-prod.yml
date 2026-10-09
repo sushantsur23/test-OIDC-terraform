@@ -86,3 +86,29 @@ jobs:
 
       - run: terraform init -input=false
       - run: terraform apply -input=false tfplan
+  
+  destroy:
+    needs: apply
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest # no environment, so it runs without a second approval
+    defaults:
+      run:
+        working-directory: ${{ env.WORKDIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Wait 2 minutes before destroying
+        run: sleep 120
+
+      # Assume the role after the wait so the session is fresh for the destroy.
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - run: terraform init -input=false
+      - run: terraform destroy -input=false -auto-approve
