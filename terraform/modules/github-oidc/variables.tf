@@ -8,6 +8,12 @@ variable "github_repository" {
   }
 }
 
+variable "github_subject_repository" {
+  description = "Repo identifier used in the OIDC sub claim, if it differs from github_repository, e.g. owner@123/repo@456. Find it in CloudTrail AssumeRoleWithWebIdentity events. Null uses github_repository."
+  type        = string
+  default     = null
+}
+
 variable "role_name" {
   description = "Name of the IAM role GitHub Actions assumes."
   type        = string

@@ -30,6 +30,12 @@ variable "github_repository" {
   type        = string
 }
 
+variable "github_subject_repository" {
+  description = "Repo identifier in the GitHub OIDC sub claim, e.g. owner@ownerId/repo@repoId. Null uses github_repository."
+  type        = string
+  default     = null
+}
+
 variable "create_oidc_provider" {
   description = "Set false if the GitHub OIDC provider already exists in this account."
   type        = bool

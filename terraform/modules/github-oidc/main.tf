@@ -5,11 +5,15 @@ locals {
   account_id = data.aws_caller_identity.current.account_id
   partition  = data.aws_partition.current.partition
 
+  # Repo identifier as it appears in the token's sub claim. GitHub may send
+  # the immutable form owner@ownerId/repo@repoId instead of owner/repo.
+  subject_repository = coalesce(var.github_subject_repository, var.github_repository)
+
   # Which GitHub workflow runs may assume the role.
   allowed_subjects = concat(
-    [for b in var.allowed_branches : "repo:${var.github_repository}:ref:refs/heads/${b}"],
-    [for e in var.allowed_environments : "repo:${var.github_repository}:environment:${e}"],
-    var.allow_pull_requests ? ["repo:${var.github_repository}:pull_request"] : [],
+    [for b in var.allowed_branches : "repo:${local.subject_repository}:ref:refs/heads/${b}"],
+    [for e in var.allowed_environments : "repo:${local.subject_repository}:environment:${e}"],
+    var.allow_pull_requests ? ["repo:${local.subject_repository}:pull_request"] : [],
   )
 
   oidc_provider_arn = var.create_oidc_provider ? aws_iam_openid_connect_provider.github[0].arn : "arn:${local.partition}:iam::${local.account_id}:oidc-provider/token.actions.githubusercontent.com"
