@@ -29,6 +29,7 @@ env:
   TF_VERSION: "1.10.5"
   AWS_REGION: "us-east-1"
   WORKDIR: terraform/environments/prod
+  SECRET_ID: sushant-app/prod/ci-test-keys # AWS Secrets Manager, created outside Terraform
 
 jobs:
   plan:
@@ -43,6 +44,26 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
+      # Creates the secret, or adds missing keys, with default values.
+      # Existing values are left untouched.
+      - name: Ensure secrets exist in AWS Secrets Manager
+        run: bash "$GITHUB_WORKSPACE/scripts/ensure-secrets.sh"
+
+      # Reads the keys and prints proof they arrived (values stay masked).
+      - name: Read secrets from AWS Secrets Manager
+        run: |
+          secret_json=$(aws secretsmanager get-secret-value --secret-id "$SECRET_ID" --query SecretString --output text)
+          for key in AWS_ACCESS_KEY AWS_SECRET_KEY; do
+            value=$(echo "$secret_json" | jq -r --arg k "$key" '.[$k] // empty')
+            if [ -z "$value" ]; then
+              echo "::error::$key not found in $SECRET_ID"
+              exit 1
+            fi
+            echo "::add-mask::$value"
+            echo "$key length: ${#value}"
+            echo "$key sha256: $(printf '%s' "$value" | sha256sum | cut -d' ' -f1)"
+          done
 
       - uses: hashicorp/setup-terraform@v3
         with:

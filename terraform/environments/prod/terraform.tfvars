@@ -1,7 +1,7 @@
 # Non-secret values only. Never put secret values here — they go into
 # Secrets Manager through the console or CLI.
 
-aws_region        = "us-east-1"
+aws_region        = "us-west-2"
 project           = "sushant-app"
 environment       = "prod"
 owner             = "sushant"
