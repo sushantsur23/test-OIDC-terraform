@@ -1,0 +1,88 @@
+# Starter pipeline: plan on pull requests, apply on merge to main.
+# Setup in GitHub:
+#   1. Settings > Secrets and variables > Actions > Variables:
+#      AWS_ROLE_ARN = output `github_actions_role_arn` from terraform/bootstrap
+#   2. Settings > Environments: create "prod" and add required reviewers,
+#      so every apply waits for manual approval.
+
+name: terraform-prod
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ["terraform/**", ".github/workflows/terraform-prod.yml"]
+  push:
+    branches: [main]
+    paths: ["terraform/**", ".github/workflows/terraform-prod.yml"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write # required for OIDC
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: terraform-prod
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: "1.10.5"
+  AWS_REGION: "us-east-1"
+  WORKDIR: terraform/environments/prod
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest # no environment here, so PR plans don't wait for approval
+    defaults:
+      run:
+        working-directory: ${{ env.WORKDIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - run: terraform fmt -check -recursive ../..
+      - run: terraform init -input=false
+      - run: terraform validate
+      - run: terraform plan -input=false -out=tfplan
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ env.WORKDIR }}/tfplan
+          retention-days: 5
+
+  apply:
+    needs: plan
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: prod # add required reviewers on this environment for manual approval
+    defaults:
+      run:
+        working-directory: ${{ env.WORKDIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ env.WORKDIR }}
+
+      - run: terraform init -input=false
+      - run: terraform apply -input=false tfplan
